@@ -1,0 +1,98 @@
+---
+title: "Reproducible Research Project 1"
+author: "Joe Lindenmayer"
+date: "December 27, 2020"
+output: html_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(lubridate)
+library(ggplot2)
+```
+
+
+First we need to load the data
+
+```{r, echo=TRUE}
+archiveFile <- "repdata_data_activity.zip"
+
+
+if(!file.exists(archiveFile)) {
+    
+    archiveURL <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+    
+    download.file(url=archiveURL,destfile=archiveFile)
+}
+
+
+activity <- read.csv("activity.csv")
+
+activity$date <- ymd(activity$date)
+```
+
+Using the data, we want to see the total number of steps taken per day. The results will be plotted in a histogram. For practice, I made the plot using both the base system and ggplot2's qplot function. 
+
+```{r, echo=TRUE}
+SPD <- aggregate(steps~date,activity,sum)
+hist(SPD$steps,col="lightblue",breaks=20,xlab="Total Steps in a Day",main="Frequency of Total Steps in a Day From October to December")
+qplot(SPD$steps,geom="histogram",bins=20,main="Frequency of Total Steps/Day from Oct to Dec",xlab="Total Steps",ylab="Frequency",fill=I("lightblue"),col=I("orange"),alpha=I(0.9))
+```
+
+Next, we find the mean and median of the steps taken 
+
+```{r, echo=TRUE}
+mean(SPD$steps)
+median(SPD$steps)
+```
+
+Next, we want to see what activity looks like throughout the day. Data was collected in 5-minute intervals, so we will use this data to produce a time-series line graph to display the average activity throuhgout the day. Once this data is plotted, we also want to find which time interval has the most activity,
+
+```{r, echo=TRUE}
+SPI <- aggregate(steps~interval,activity,mean)
+with(SPI, plot(interval,steps,type="l"))
+ggplot(data=SPI,aes(x=interval,y=steps,group=1)) +theme_minimal()+geom_line(color="orange")+geom_point()
+SPI[which.max(SPI[,2]),1]
+```
+
+
+Next, we want to address the several NA entries to the data. We first want to see how many NA entries there are. As a basic solution, we will replace each NA with the average number of steps in a 5-minute interval.
+
+The resulting dataset is then plotted in histogram form, and again for practice, both ggplot and base are used. Finally, the new mean and median with NAs replaced are reported.
+
+```{r, echo=TRUE}
+NAIndex <- is.na(activity[,1])
+sum(is.na(activity$steps))
+
+averageSteps <- mean(SPI$steps)
+
+activityNEW <- activity
+activityNEW[NAIndex,1] <- averageSteps
+
+totalStepsByDay <- aggregate(steps~date,activityNEW,sum)
+hist(totalStepsByDay$steps, xlab="Total Steps per Day", ylab="Number of Days Steps were Met",main= "Number of Steps Taken in a Day with NAs Removed")
+qplot(totalStepsByDay$steps,geom="histogram",bins=10,xlab="Total Steps Taken",main="Number of Steps Taken per Day with NAs Removed", fill=I("lightblue"),col=I("orange"),alpha=I(0.9))
+
+meanAfterNAs <- mean(totalStepsByDay$steps)
+medianAfterNAs <- median(totalStepsByDay$steps)
+```
+
+Finally, we would like to see the difference between weekday and weekend activity. Dates were formatted earlier using lubridate, and we will add a new column to the dataset called "datetype" where each interval is assigned weekend or weekday. 
+
+The results are plotted in a line graph. The first plot shows both weekends and weekdays on the same plot, while the second plot displays the results seperately. 
+
+```{r, echo=TRUE}
+activity$datetype <- sapply(activity$date, function(x){
+    if (weekdays(x) =="Sunday" | weekdays(x) == "Saturday")
+        {y <- "Weekend"}
+    else{y <- "Weekday"}
+    y
+    })
+
+weekday_weekend_comparison <- aggregate(steps~interval + datetype, activity, mean, na.rm=TRUE)
+plot <- ggplot(weekday_weekend_comparison, aes(x=interval, y=steps, color=datetype))+geom_line() + labs(title = "Average Daily Steps Weekdays Vs Weekends", x="Interval", y="Average # of Steps")
+plot1 <- ggplot(weekday_weekend_comparison, aes(x=interval, y=steps, color=datetype))+geom_line() + labs(title = "Average Daily Steps Weekdays Vs Weekends", x="Interval", y="Average # of Steps") + facet_wrap(~datetype, ncol=1,nrow=2)
+print(plot)
+print(plot1)
+```
+
